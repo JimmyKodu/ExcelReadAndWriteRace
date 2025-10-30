@@ -84,6 +84,7 @@ public class ExcelBenchmark
     private List<Dictionary<string, object>> GenerateTestData()
     {
         var data = new List<Dictionary<string, object>>();
+        var baseDate = new DateTime(2024, 1, 1);
         
         // Data rows
         for (int i = 1; i <= RowCount; i++)
@@ -93,7 +94,7 @@ public class ExcelBenchmark
                 { "Column1", i },
                 { "Column2", $"Name{i}" },
                 { "Column3", i * 100.50 },
-                { "Column4", DateTime.Now.AddDays(-i) },
+                { "Column4", baseDate.AddDays(i) },
                 { "Column5", i % 2 == 0 },
                 { "Column6", $"Email{i}@example.com" },
                 { "Column7", i * 1.5 },
