@@ -7,6 +7,7 @@ using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
 using ExcelDataReader;
 using MiniExcelLibs;
+using OfficeOpenXml;
 
 Console.OutputEncoding = Encoding.UTF8;
 Console.WriteLine("=".PadRight(80, '='));
@@ -45,9 +46,10 @@ public class ExcelBenchmark
         Console.WriteLine();
         
         var miniExcelWriteTime = await BenchmarkWriteMiniExcelAsync();
-        var excelDataReaderWriteTime = "N/A (Read-only library)";
+        var excelDataReaderWriteTime = "N/A (Read-only)";
         var openXmlWriteTime = await BenchmarkWriteOpenXmlAsync();
         var closedXmlWriteTime = await BenchmarkWriteClosedXMLAsync();
+        var epplusWriteTime = await BenchmarkWriteEPPlusAsync();
         
         Console.WriteLine();
         
@@ -61,6 +63,7 @@ public class ExcelBenchmark
         var excelDataReaderReadTime = await BenchmarkReadExcelDataReaderAsync();
         var openXmlReadTime = await BenchmarkReadOpenXmlAsync();
         var closedXmlReadTime = await BenchmarkReadClosedXMLAsync();
+        var epplusReadTime = await BenchmarkReadEPPlusAsync();
         
         Console.WriteLine();
         
@@ -77,6 +80,7 @@ public class ExcelBenchmark
         Console.WriteLine($"│ ExcelDataReader 3.8.0               │ {excelDataReaderWriteTime,-15} │ {excelDataReaderReadTime,-15} │");
         Console.WriteLine($"│ DocumentFormat.OpenXml 3.3.0        │ {openXmlWriteTime,-15} │ {openXmlReadTime,-15} │");
         Console.WriteLine($"│ ClosedXML 0.105.0                   │ {closedXmlWriteTime,-15} │ {closedXmlReadTime,-15} │");
+        Console.WriteLine($"│ EPPlus 4.5.3.3                      │ {epplusWriteTime,-15} │ {epplusReadTime,-15} │");
         Console.WriteLine("└─────────────────────────────────────┴─────────────────┴─────────────────┘");
         Console.WriteLine();
     }
@@ -233,6 +237,46 @@ public class ExcelBenchmark
         return Task.FromResult($"{sw.ElapsedMilliseconds} ms");
     }
     
+    private Task<string> BenchmarkWriteEPPlusAsync()
+    {
+        var filePath = Path.Combine(testDataPath, "EPPlus_Write.xlsx");
+        var data = GenerateTestData();
+        
+        var sw = Stopwatch.StartNew();
+        
+        using (var package = new ExcelPackage())
+        {
+            var worksheet = package.Workbook.Worksheets.Add("Sheet1");
+            
+            // Write header
+            var columnNames = data.First().Keys.ToList();
+            for (int colIndex = 0; colIndex < columnNames.Count; colIndex++)
+            {
+                worksheet.Cells[1, colIndex + 1].Value = columnNames[colIndex];
+            }
+            
+            // Write data
+            int rowIndex = 2;
+            foreach (var dataRow in data)
+            {
+                int colIndex = 1;
+                foreach (var kvp in dataRow)
+                {
+                    worksheet.Cells[rowIndex, colIndex++].Value = kvp.Value?.ToString() ?? "";
+                }
+                rowIndex++;
+            }
+            
+            package.SaveAs(new FileInfo(filePath));
+        }
+        
+        sw.Stop();
+        
+        var fileSize = new FileInfo(filePath).Length;
+        Console.WriteLine($"✓ EPPlus Write:             {sw.ElapsedMilliseconds,6} ms (File size: {fileSize / 1024:N0} KB)");
+        return Task.FromResult($"{sw.ElapsedMilliseconds} ms");
+    }
+    
     private async Task<string> BenchmarkReadMiniExcelAsync()
     {
         var filePath = Path.Combine(testDataPath, "MiniExcel_Write.xlsx");
@@ -310,6 +354,25 @@ public class ExcelBenchmark
         sw.Stop();
         
         Console.WriteLine($"✓ ClosedXML Read:           {sw.ElapsedMilliseconds,6} ms (Rows read: {count:N0})");
+        return Task.FromResult($"{sw.ElapsedMilliseconds} ms");
+    }
+    
+    private Task<string> BenchmarkReadEPPlusAsync()
+    {
+        var filePath = Path.Combine(testDataPath, "EPPlus_Write.xlsx");
+        
+        var sw = Stopwatch.StartNew();
+        
+        int count = 0;
+        using (var package = new ExcelPackage(new FileInfo(filePath)))
+        {
+            var worksheet = package.Workbook.Worksheets[0];
+            count = worksheet.Dimension?.End.Row ?? 0;
+        }
+        
+        sw.Stop();
+        
+        Console.WriteLine($"✓ EPPlus Read:              {sw.ElapsedMilliseconds,6} ms (Rows read: {count:N0})");
         return Task.FromResult($"{sw.ElapsedMilliseconds} ms");
     }
     
