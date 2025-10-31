@@ -466,32 +466,11 @@ public class ExcelBenchmark
         }
     }
     
-    private async Task<string> BenchmarkReadMiniExcelXlsAsync()
+    private Task<string> BenchmarkReadMiniExcelXlsAsync()
     {
-        var filePath = Path.Combine(testDataPath, "NPOI_Write.xls");
-        
-        if (!File.Exists(filePath))
-        {
-            Console.WriteLine($"✗ MiniExcel XLS Read:       Skipped (no XLS file)");
-            return "N/A";
-        }
-        
-        var sw = Stopwatch.StartNew();
-        try
-        {
-            var rows = await MiniExcel.QueryAsync(filePath);
-            var count = rows.Count();
-            sw.Stop();
-            
-            Console.WriteLine($"✗ MiniExcel XLS Read:       Not Supported");
-            return "N/A";
-        }
-        catch (Exception)
-        {
-            sw.Stop();
-            Console.WriteLine($"✗ MiniExcel XLS Read:       Not Supported");
-            return "N/A";
-        }
+        // MiniExcel does not support XLS format
+        Console.WriteLine($"✗ MiniExcel XLS Read:       Not Supported");
+        return Task.FromResult("N/A");
     }
     
     private Task<string> BenchmarkReadExcelDataReaderXlsAsync()
