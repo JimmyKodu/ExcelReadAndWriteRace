@@ -8,6 +8,8 @@ using DocumentFormat.OpenXml.Spreadsheet;
 using ExcelDataReader;
 using MiniExcelLibs;
 using OfficeOpenXml;
+using NPOI.HSSF.UserModel;
+using NPOI.SS.UserModel;
 
 Console.OutputEncoding = Encoding.UTF8;
 Console.WriteLine("=".PadRight(80, '='));
@@ -39,9 +41,9 @@ public class ExcelBenchmark
         Console.WriteLine($"  Test Directory: {testDataPath}");
         Console.WriteLine();
         
-        // Write Tests
+        // Write Tests - XLSX
         Console.WriteLine("=" + "=".PadRight(78, '='));
-        Console.WriteLine("WRITE PERFORMANCE TESTS");
+        Console.WriteLine("WRITE PERFORMANCE TESTS (XLSX Format)");
         Console.WriteLine("=" + "=".PadRight(78, '='));
         Console.WriteLine();
         
@@ -53,9 +55,9 @@ public class ExcelBenchmark
         
         Console.WriteLine();
         
-        // Read Tests
+        // Read Tests - XLSX
         Console.WriteLine("=" + "=".PadRight(78, '='));
-        Console.WriteLine("READ PERFORMANCE TESTS");
+        Console.WriteLine("READ PERFORMANCE TESTS (XLSX Format)");
         Console.WriteLine("=" + "=".PadRight(78, '='));
         Console.WriteLine();
         
@@ -67,9 +69,24 @@ public class ExcelBenchmark
         
         Console.WriteLine();
         
+        // XLS Format Compatibility Tests
+        Console.WriteLine("=" + "=".PadRight(78, '='));
+        Console.WriteLine("XLS FORMAT (Excel 97-2003) COMPATIBILITY TESTS");
+        Console.WriteLine("=" + "=".PadRight(78, '='));
+        Console.WriteLine();
+        
+        var npoiXlsWriteTime = await BenchmarkWriteNpoiXlsAsync();
+        var excelDataReaderXlsReadTime = await BenchmarkReadExcelDataReaderXlsAsync();
+        var miniExcelXlsReadTime = await BenchmarkReadMiniExcelXlsAsync();
+        
+        Console.WriteLine();
+        Console.WriteLine("Note: Only ExcelDataReader and NPOI support the legacy XLS format.");
+        Console.WriteLine("      DocumentFormat.OpenXml, ClosedXML, EPPlus, and MiniExcel only support XLSX.");
+        Console.WriteLine();
+        
         // Summary
         Console.WriteLine("=" + "=".PadRight(78, '='));
-        Console.WriteLine("SUMMARY");
+        Console.WriteLine("SUMMARY - XLSX Format");
         Console.WriteLine("=" + "=".PadRight(78, '='));
         Console.WriteLine();
         
@@ -81,6 +98,23 @@ public class ExcelBenchmark
         Console.WriteLine($"│ DocumentFormat.OpenXml 3.3.0        │ {openXmlWriteTime,-15} │ {openXmlReadTime,-15} │");
         Console.WriteLine($"│ ClosedXML 0.105.0                   │ {closedXmlWriteTime,-15} │ {closedXmlReadTime,-15} │");
         Console.WriteLine($"│ EPPlus 4.5.3.3                      │ {epplusWriteTime,-15} │ {epplusReadTime,-15} │");
+        Console.WriteLine("└─────────────────────────────────────┴─────────────────┴─────────────────┘");
+        Console.WriteLine();
+        
+        Console.WriteLine("=" + "=".PadRight(78, '='));
+        Console.WriteLine("SUMMARY - XLS Format (Excel 97-2003)");
+        Console.WriteLine("=" + "=".PadRight(78, '='));
+        Console.WriteLine();
+        
+        Console.WriteLine("┌─────────────────────────────────────┬─────────────────┬─────────────────┐");
+        Console.WriteLine("│ Library                             │ Write Time      │ Read Time       │");
+        Console.WriteLine("├─────────────────────────────────────┼─────────────────┼─────────────────┤");
+        Console.WriteLine($"│ MiniExcel 1.41.4                    │ {"N/A",-15} │ {miniExcelXlsReadTime,-15} │");
+        Console.WriteLine($"│ ExcelDataReader 3.8.0               │ {excelDataReaderWriteTime,-15} │ {excelDataReaderXlsReadTime,-15} │");
+        Console.WriteLine($"│ DocumentFormat.OpenXml 3.3.0        │ {"N/A",-15} │ {"N/A",-15} │");
+        Console.WriteLine($"│ ClosedXML 0.105.0                   │ {"N/A",-15} │ {"N/A",-15} │");
+        Console.WriteLine($"│ EPPlus 4.5.3.3                      │ {"N/A",-15} │ {"N/A",-15} │");
+        Console.WriteLine($"│ NPOI 2.7.3                          │ {npoiXlsWriteTime,-15} │ {"N/A",-15} │");
         Console.WriteLine("└─────────────────────────────────────┴─────────────────┴─────────────────┘");
         Console.WriteLine();
     }
@@ -161,7 +195,7 @@ public class ExcelBenchmark
                 {
                     CellReference = GetColumnName(colIndex + 1) + "1",
                     DataType = CellValues.String,
-                    CellValue = new CellValue(columnNames[colIndex])
+                    CellValue = new DocumentFormat.OpenXml.Spreadsheet.CellValue(columnNames[colIndex])
                 };
                 headerRow.Append(cell);
             }
@@ -181,7 +215,7 @@ public class ExcelBenchmark
                     {
                         CellReference = GetColumnName(colIndex) + (rowIndex - 1),
                         DataType = CellValues.String,
-                        CellValue = new CellValue(kvp.Value?.ToString() ?? "")
+                        CellValue = new DocumentFormat.OpenXml.Spreadsheet.CellValue(kvp.Value?.ToString() ?? "")
                     };
                     row.Append(cell);
                 }
@@ -374,6 +408,132 @@ public class ExcelBenchmark
         
         Console.WriteLine($"✓ EPPlus Read:              {sw.ElapsedMilliseconds,6} ms (Rows read: {count:N0})");
         return Task.FromResult($"{sw.ElapsedMilliseconds} ms");
+    }
+    
+    // XLS Format Benchmark Methods
+    
+    private Task<string> BenchmarkWriteNpoiXlsAsync()
+    {
+        var filePath = Path.Combine(testDataPath, "NPOI_Write.xls");
+        var data = GenerateTestData();
+        
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            using (var workbook = new HSSFWorkbook())
+            {
+                var sheet = workbook.CreateSheet("Sheet1");
+                
+                // Write header
+                var headerRow = sheet.CreateRow(0);
+                var columnNames = data.First().Keys.ToList();
+                for (int colIndex = 0; colIndex < columnNames.Count; colIndex++)
+                {
+                    var cell = headerRow.CreateCell(colIndex);
+                    cell.SetCellValue(columnNames[colIndex]);
+                }
+                
+                // Write data
+                int rowIndex = 1;
+                foreach (var dataRow in data)
+                {
+                    var row = sheet.CreateRow(rowIndex++);
+                    int colIndex = 0;
+                    foreach (var kvp in dataRow)
+                    {
+                        var cell = row.CreateCell(colIndex++);
+                        cell.SetCellValue(kvp.Value?.ToString() ?? "");
+                    }
+                }
+                
+                using (var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.Write))
+                {
+                    workbook.Write(fileStream);
+                }
+            }
+            
+            sw.Stop();
+            
+            var fileSize = new FileInfo(filePath).Length;
+            Console.WriteLine($"✓ NPOI XLS Write:           {sw.ElapsedMilliseconds,6} ms (File size: {fileSize / 1024:N0} KB)");
+            return Task.FromResult($"{sw.ElapsedMilliseconds} ms");
+        }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            Console.WriteLine($"✗ NPOI XLS Write:           Failed - {ex.Message}");
+            return Task.FromResult("Failed");
+        }
+    }
+    
+    private async Task<string> BenchmarkReadMiniExcelXlsAsync()
+    {
+        var filePath = Path.Combine(testDataPath, "NPOI_Write.xls");
+        
+        if (!File.Exists(filePath))
+        {
+            Console.WriteLine($"✗ MiniExcel XLS Read:       Skipped (no XLS file)");
+            return "N/A";
+        }
+        
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            var rows = await MiniExcel.QueryAsync(filePath);
+            var count = rows.Count();
+            sw.Stop();
+            
+            Console.WriteLine($"✗ MiniExcel XLS Read:       Not Supported");
+            return "N/A";
+        }
+        catch (Exception)
+        {
+            sw.Stop();
+            Console.WriteLine($"✗ MiniExcel XLS Read:       Not Supported");
+            return "N/A";
+        }
+    }
+    
+    private Task<string> BenchmarkReadExcelDataReaderXlsAsync()
+    {
+        var filePath = Path.Combine(testDataPath, "NPOI_Write.xls");
+        
+        if (!File.Exists(filePath))
+        {
+            Console.WriteLine($"✗ ExcelDataReader XLS Read: Skipped (no XLS file)");
+            return Task.FromResult("N/A");
+        }
+        
+        System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+        
+        var sw = Stopwatch.StartNew();
+        
+        try
+        {
+            int count = 0;
+            using (var stream = File.Open(filePath, FileMode.Open, FileAccess.Read))
+            {
+                using (var reader = ExcelReaderFactory.CreateReader(stream))
+                {
+                    var result = reader.AsDataSet();
+                    if (result.Tables.Count > 0)
+                    {
+                        count = result.Tables[0].Rows.Count;
+                    }
+                }
+            }
+            
+            sw.Stop();
+            
+            Console.WriteLine($"✓ ExcelDataReader XLS Read: {sw.ElapsedMilliseconds,6} ms (Rows read: {count:N0})");
+            return Task.FromResult($"{sw.ElapsedMilliseconds} ms");
+        }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            Console.WriteLine($"✗ ExcelDataReader XLS Read: Failed - {ex.Message}");
+            return Task.FromResult("Failed");
+        }
     }
     
     private string GetColumnName(int columnNumber)
